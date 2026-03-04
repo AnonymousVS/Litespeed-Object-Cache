@@ -58,13 +58,13 @@
 
 ## วิธีรัน
 
-### 1. ตั้งค่า Object Cache
+### 1. Setup Object Cache ตั้งค่า
 
 ```bash
 curl -s "https://raw.githubusercontent.com/ufavision/object-cache/main/setup-object-cache.sh" | bash
 ```
 
-### 2. ตรวจสอบผลลัพธ์
+### 2. Verify Object Cache ตรวจสอบผลลัพธ์
 
 ```bash
 curl -s "https://raw.githubusercontent.com/ufavision/object-cache/main/verify-object-cache.sh" | bash
