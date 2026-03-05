@@ -316,7 +316,7 @@ process_site() {
 
     # --- ถ้าครบทุก field ถูกต้องหมด: skip เงียบๆ ---
     if [ "${#NEED_FIX[@]}" -eq 0 ]; then
-        _log "✅ SKIP : $SITE"
+        _log "✔️  $SITE"
         touch "${RESULT_DIR}/check/correct_${UNIQUE}"
         return
     fi
@@ -330,32 +330,33 @@ process_site() {
         esac
     }
 
-    # --- แสดงเฉพาะ field ที่เปลี่ยน (จากอะไร → เป็นอะไร) ---
-    _log "======================================"
-    _log "🔧 FIX (${#NEED_FIX[@]} รายการ): $SITE"
+    # --- build change summary แบบ inline ---
+    local CHANGES=""
     for field in "${NEED_FIX[@]}"; do
         case "$field" in
             object)
                 local OBJ_OLD; [ "$CUR_OBJ" = "1" ] && OBJ_OLD="ON" || OBJ_OLD="OFF"
-                _log "   ❌→✅ Object Cache : ${OBJ_OLD} → ON"
+                CHANGES="${CHANGES} ⚙️ Object Cache: ${OBJ_OLD} ► ON  |"
                 ;;
             object-kind)
-                _log "   ❌→✅ Method       : $(_kind_label "$CUR_KIND") → Redis"
+                CHANGES="${CHANGES} ⚙️ Method: $(_kind_label "$CUR_KIND") ► Redis  |"
                 ;;
             object-host)
-                _log "   ❌→✅ Host         : '${CUR_HOST:-empty}' → /var/run/redis/redis.sock"
+                CHANGES="${CHANGES} ⚙️ Host: '${CUR_HOST:-empty}' ► /var/run/redis/redis.sock  |"
                 ;;
             object-port)
-                _log "   ❌→✅ Port         : '${CUR_PORT:-empty}' → 0"
+                CHANGES="${CHANGES} ⚙️ Port: '${CUR_PORT:-0}' ► 0  |"
                 ;;
             object-user)
-                _log "   ❌→✅ User         : '${CUR_USER}' → (ว่างเปล่า)"
+                CHANGES="${CHANGES} ⚙️ User: '${CUR_USER}' ► (ว่าง)  |"
                 ;;
             object-pswd)
-                _log "   ❌→✅ Password     : (มีค่า) → (ว่างเปล่า)"
+                CHANGES="${CHANGES} ⚙️ Password: (มีค่า) ► (ว่าง)  |"
                 ;;
         esac
     done
+    CHANGES="${CHANGES%  |}"
+    _log "🔧 $SITE  ${CHANGES}" 
 
     # --- แก้ไขเฉพาะ field ที่ผิด ---
     local FAILED=0
@@ -371,14 +372,9 @@ process_site() {
     done
 
     if [ "$FAILED" -eq 1 ]; then
-        _log "--------------------------------------"
-        _log "   ❌ FAILED : แก้ไขไม่สำเร็จ"
-        _log "   📁 Site   : $SITE"
-        _log "======================================"
+        _log "❌ FAILED : $SITE"
         touch "${RESULT_DIR}/check/failed_${UNIQUE}"
     else
-        _log "   ✅ FIXED  : แก้ไขครบทุกรายการแล้ว"
-        _log "======================================"
         touch "${RESULT_DIR}/check/fixed_${UNIQUE}"
     fi
 }
