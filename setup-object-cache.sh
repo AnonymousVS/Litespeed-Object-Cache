@@ -88,34 +88,114 @@ log " WP-CLI        : ✅ $(wp --version --allow-root 2>/dev/null)"
 log " Home Dirs     : ${FOUND_HOMES[*]}"
 log "======================================"
 
-# ====================================
-# หา WordPress ทั้งหมด (ใช้ find ค้นหาทุก level)
-# รองรับ /home และ /home2 + ทุก cPanel user
-# ค้นหา wp-config.php ทุก subdirectory ภายใต้ public_html
-# ข้าม: wp-content, backup, cache, tmp, .trash
-# ====================================
+# ============================================================
+# DISCOVERY: กวาดหา cPanel users + WordPress ทั้งหมด
+# แสดงรายงานก่อนเริ่มทำงาน
+# ============================================================
+log ""
+log "======================================"
+log " DISCOVERY: กำลังสแกนหา cPanel Users..."
+log "======================================"
+
+# เก็บข้อมูลรวม
 DIRS=()
+TOTAL_CPANEL_USERS=0
+TOTAL_WP_SITES=0
+
+# ใช้ associative array เก็บจำนวนเว็บต่อ user
+declare -A USER_WP_COUNT
+declare -A USER_HOME_BASE
+declare -A USER_WP_SITES
 
 for base in "${HOME_DIRS[@]}"; do
     [ -d "$base" ] || continue
 
-    while IFS= read -r wpconfig; do
-        WPDIR=$(dirname "$wpconfig")
-        DIRS+=("${WPDIR}/")
-    done < <(find "$base"/*/public_html -name "wp-config.php" \
-        -not -path "*/wp-content/*" \
-        -not -path "*/wp-includes/*" \
-        -not -path "*/backup*/*" \
-        -not -path "*/cache/*" \
-        -not -path "*/tmp/*" \
-        -not -path "*/.trash/*" \
-        -not -path "*/node_modules/*" \
-        2>/dev/null)
+    USERS_IN_BASE=0
+
+    for userhome in "${base}"/*/; do
+        [ -d "$userhome" ] || continue
+        [ -d "${userhome}public_html" ] || continue
+
+        USERNAME=$(basename "$userhome")
+
+        # ข้าม system directories ที่ไม่ใช่ cPanel user
+        case "$USERNAME" in
+            cPanel|virtfs|cpeasyapache|softaculous|.cpan) continue ;;
+        esac
+
+        # หา WordPress ทั้งหมดใน user นี้
+        WP_COUNT=0
+        WP_LIST=""
+
+        while IFS= read -r wpconfig; do
+            WPDIR=$(dirname "$wpconfig")
+            DIRS+=("${WPDIR}/")
+
+            SUBDIR=${WPDIR#*public_html/}
+            SUBDIR=${SUBDIR%/}
+            [ "$SUBDIR" = "$WPDIR" ] && SUBDIR="main"  # ถ้าอยู่ตรง public_html
+
+            if [ -n "$WP_LIST" ]; then
+                WP_LIST="${WP_LIST}, ${SUBDIR:-main}"
+            else
+                WP_LIST="${SUBDIR:-main}"
+            fi
+
+            ((WP_COUNT++))
+        done < <(find "${userhome}public_html" -name "wp-config.php" \
+            -not -path "*/wp-content/*" \
+            -not -path "*/wp-includes/*" \
+            -not -path "*/backup*/*" \
+            -not -path "*/cache/*" \
+            -not -path "*/tmp/*" \
+            -not -path "*/.trash/*" \
+            -not -path "*/node_modules/*" \
+            2>/dev/null)
+
+        if [ "$WP_COUNT" -gt 0 ]; then
+            USER_WP_COUNT["$USERNAME"]=$WP_COUNT
+            USER_HOME_BASE["$USERNAME"]=$base
+            USER_WP_SITES["$USERNAME"]=$WP_LIST
+            ((TOTAL_CPANEL_USERS++))
+            TOTAL_WP_SITES=$((TOTAL_WP_SITES + WP_COUNT))
+            ((USERS_IN_BASE++))
+        fi
+    done
+
+    log " 📂 $base : พบ $USERS_IN_BASE cPanel users ที่มี WordPress"
 done
 
-TOTAL=${#DIRS[@]}
-log "พบ WordPress ทั้งหมด: $TOTAL เว็บ"
+log ""
 log "======================================"
+log " สรุปผล DISCOVERY"
+log " cPanel Users (มี WP) : $TOTAL_CPANEL_USERS users"
+log " WordPress ทั้งหมด     : $TOTAL_WP_SITES เว็บ"
+log "======================================"
+log ""
+
+# ====================================
+# แสดงรายละเอียดแต่ละ cPanel user
+# ====================================
+log "--------------------------------------"
+log " รายละเอียด cPanel Users"
+log "--------------------------------------"
+
+# เรียงตามชื่อ user
+SORTED_USERS=($(echo "${!USER_WP_COUNT[@]}" | tr ' ' '\n' | sort))
+
+INDEX=1
+for user in "${SORTED_USERS[@]}"; do
+    log " $INDEX) $user"
+    log "    Home     : ${USER_HOME_BASE[$user]}"
+    log "    WP Sites : ${USER_WP_COUNT[$user]} เว็บ"
+    log "    Sites    : ${USER_WP_SITES[$user]}"
+    ((INDEX++))
+done
+
+log "--------------------------------------"
+log ""
+
+TOTAL=${#DIRS[@]}
 
 if [ "$TOTAL" -eq 0 ]; then
     log "ไม่พบเว็บ WordPress ใดๆ ในระบบ"
@@ -125,7 +205,9 @@ fi
 # ====================================
 # PHASE 1: Check
 # ====================================
+log "======================================"
 log " PHASE 1: กำลังตรวจสอบค่าปัจจุบัน..."
+log " ตรวจสอบ $TOTAL เว็บ จาก $TOTAL_CPANEL_USERS cPanel users"
 log "======================================"
 
 check_site() {
@@ -222,6 +304,7 @@ fi
 # ====================================
 # PHASE 2: Setup
 # ====================================
+log "======================================"
 log " PHASE 2: กำลังแก้ไข $NEEDSFIX เว็บ..."
 log "======================================"
 
