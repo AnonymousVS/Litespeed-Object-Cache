@@ -25,7 +25,7 @@ Script นี้จะวิ่งเข้าไปในทุก cPanel Accou
 ## วิธีใช้งาน
 
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/AnonymousVS/litespeed-object-cache/refs/heads/main/setup-object-cache.sh)
+bash <(curl -s https://raw.githubusercontent.com/AnonymousVS/Litespeed-Object-Cache/refs/heads/main/setup-object-cache.sh)
 ```
 
 ---
